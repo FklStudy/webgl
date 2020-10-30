@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>WebGL Demo</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="./index.css" type="text/css">
+</head>
+
+<body>
+    <canvas id="glcanvas" width="640" height="480"></canvas>
+    <script src="./gl-matrix/gl-matrix.js"></script>
+    <script src="./core.js"></script>
+</body>
+
+<script>
+    main();
+
+    function main() {
+        const canvas = document.querySelector('#glcanvas')
+        const gl = canvas.getContext('webgl')
+        if (!gl) {
+            alert('浏览器不支持webGL!')
+            return
+        }
+
+        const vsSource = `
+    attribute vec4 aVertexPosition;
+
+    uniform mat4 uModelViewMatrix;
+    uniform mat4 uProjectionMatrix;
+
+    void main() {
+      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+    }
+  `
+
+        const fsSource = `
+    void main() {
+      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    }
+  `
+
+        const shaderProgram = initShaderProgram(gl, vsSource, fsSource)
+
+        const programInfo = {
+            program: shaderProgram,
+            attribLocations: {
+                vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+            },
+            uniformLocations: {
+                projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+                modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+            },
+        }
+
+        const buffers = initBuffers(gl)
+
+        drawScene(gl, programInfo, buffers)
+
+    }
+
+    function drawScene(gl, programInfo, buffers) {
+        gl.clearColor(1.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
+        gl.clearDepth(1.0);                 // Clear everything
+        gl.enable(gl.DEPTH_TEST);           // Enable depth testing
+        gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        const fieldOfView = 45 * Math.PI / 180;   // 视图角度
+        const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;  // 宽高比
+        const zNear = 0.1;  // 近距离
+        const zFar = 100.0; // 远距离
+        const projectionMatrix = glMatrix.mat4.create();
+        // 场景转化
+        glMatrix.mat4.perspective(projectionMatrix,
+            fieldOfView,
+            aspect,
+            zNear,
+            zFar);
+
+        const modelViewMatrix = glMatrix.mat4.create();
+        // 模型位置转化
+        glMatrix.mat4.translate(modelViewMatrix,     // 结果矩阵
+            modelViewMatrix,     // 当前矩阵
+            [-1.0, 0.0, -6.0]);  // 移动向量
+
+        // 从缓冲区中执行 顶点着色器渲染
+            {
+            const numComponents = 3;  // 从缓存中 每次渲染取值size
+            const type = gl.FLOAT;    // 缓存中 数值精度
+            const normalize = false;  // 是否进行归一化
+            const stride = 0;         // 缓存字节间隔，取0时采用上诉设置覆盖
+            const offset = 0;         // 缓冲区内从取值开始偏移量
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+            gl.vertexAttribPointer(
+                programInfo.attribLocations.vertexPosition,
+                numComponents,
+                type,
+                normalize,
+                stride,
+                offset);
+            gl.enableVertexAttribArray(
+                programInfo.attribLocations.vertexPosition);
+        }
+
+        // 使用着色器程序
+
+        gl.useProgram(programInfo.program);
+
+        // 绑定片源着色器
+
+        gl.uniformMatrix4fv(
+            programInfo.uniformLocations.projectionMatrix,
+            false,
+            projectionMatrix);
+        gl.uniformMatrix4fv(
+            programInfo.uniformLocations.modelViewMatrix,
+            false,
+            modelViewMatrix);
+
+        {
+            const offset = 0;
+            const vertexCount = 4;
+            gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+        }
+
+    }
+
+
+    function initBuffers(gl) {
+        const positionBuffer = gl.createBuffer()
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+
+        var vertices = [
+            1.0, 1.0, 0.0,
+            -1.0, 1.0, 0.0,
+            1.0, -1.0, 0.0,
+            -1.0, -1.0, 0.0
+        ]
+
+        gl.bufferData(gl.ARRAY_BUFFER,
+            new Float32Array(vertices),
+            gl.STATIC_DRAW)
+
+        return {
+            position: positionBuffer
+        }
+    }
+</script>
+
+</html>
