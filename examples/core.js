@@ -42,10 +42,21 @@ function getProjectionMatrix(fieldOfView, aspect, zNear, zFar) {
 }
 
 
-function getModelViewMatrix(modelViewMatrix, vector) {
+// 位置移动
+function translateModelViewMatrix(modelViewMatrix, vector) {
     glMatrix.mat4.translate(modelViewMatrix,     // 结果矩阵
         modelViewMatrix,     // 当前矩阵
         vector);  // 移动向量
+    return modelViewMatrix
+}
+
+// 旋转
+// squareRotation 旋转角
+// vector:[0, 0, 1]旋转轴
+function rotateModelViewMatrix(modelViewMatrix,squareRotation,vector){
+    glMatrix.mat4.rotate(
+        modelViewMatrix,modelViewMatrix,squareRotation,vector
+    )
     return modelViewMatrix
 }
 
@@ -55,6 +66,15 @@ function initBuffers(gl, bufferType, vertices) {
     gl.bindBuffer(bufferType, buffer)
     gl.bufferData(bufferType,
         new Float32Array(vertices),
+        gl.STATIC_DRAW)
+    return buffer
+}
+
+function initElementBuffers(gl, bufferType, vertices) {
+    let buffer = gl.createBuffer();
+    gl.bindBuffer(bufferType, buffer)
+    gl.bufferData(bufferType,
+        new Uint16Array(vertices),
         gl.STATIC_DRAW)
     return buffer
 }

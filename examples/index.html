@@ -14,11 +14,16 @@
 </body>
 
 <script>
+    
+    let programInfo=null
+    let moveInfo=null
+    let gl=null
+    
     main();
 
     function main() {
         let canvas = document.querySelector('#glcanvas')
-        let gl = canvas.getContext('webgl')
+        gl = canvas.getContext('webgl')
         if (!gl) {
             alert('浏览器不支持webGL!')
             return
@@ -67,7 +72,7 @@
         // 颜色缓冲区绑定
         let colorBuffer = initBuffers(gl, gl.ARRAY_BUFFER, colors)
 
-        let programInfo = {
+        programInfo = {
             program: shaderProgram,
             attribLocations: {
                 vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
@@ -83,12 +88,35 @@
             }
         }
 
-        // 绘制
-        drawScene(gl, programInfo)
+        // 对象行为控制
+        moveInfo = {
+                translate: {
+                    vector: [0.0, 0.0, -6.0]
+                },
+                rotate: {
+                    squareRotation: 1,
+                    vector: [0, 0, 1]
+                }
+            }
 
+        render(gl, programInfo, moveInfo)
+
+        // setInterval(function () {
+        //     moveInfo.rotate.squareRotation+=0.01
+        //     // 绘制
+        //     drawScene(gl, programInfo, moveInfo)
+        // }, 1000)
     }
 
-    function drawScene(gl, programInfo) {
+    function render(){
+        moveInfo.rotate.squareRotation+=0.01
+        drawScene(gl, programInfo, moveInfo)
+        requestAnimationFrame(render)
+    }
+
+
+    // 单帧绘制
+    function drawScene(gl, programInfo, moveInfo) {
         init(gl)
 
         // 加载着色器程序
@@ -102,12 +130,12 @@
         // 场景初始化矩阵
         let projectionMatrix = getProjectionMatrix(fieldOfView, aspect, zNear, zFar)
 
-        // 位置初始化矩阵
-
-        // 初始位置矩阵
+        // 模型对象矩阵
         let modelViewMatrix = glMatrix.mat4.create();
-        // 位置移动
-        getModelViewMatrix(modelViewMatrix, [0.0, 0.0, -6.0]);
+        // 移动
+        translateModelViewMatrix(modelViewMatrix, moveInfo.translate.vector)
+        // 旋转
+        rotateModelViewMatrix(modelViewMatrix, moveInfo.rotate.squareRotation, moveInfo.rotate.vector)
 
         // 应用全局初始化和位置矩阵
         gl.uniformMatrix4fv(
@@ -163,6 +191,8 @@
             let vertexCount = 4;  // 控制绘制的顶点数
             gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
         }
+
+        // 旋转
 
     }
 
