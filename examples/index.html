@@ -17,100 +17,99 @@
     main();
 
     function main() {
-        const canvas = document.querySelector('#glcanvas')
-        const gl = canvas.getContext('webgl')
+        let canvas = document.querySelector('#glcanvas')
+        let gl = canvas.getContext('webgl')
         if (!gl) {
             alert('浏览器不支持webGL!')
             return
         }
 
-        const vsSource = `
+        let vsSource = `
     attribute vec4 aVertexPosition;
+    attribute vec4 aVertexColor;
 
     uniform mat4 uModelViewMatrix;
     uniform mat4 uProjectionMatrix;
 
+    varying lowp vec4 vColor;
+
     void main() {
       gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+
+      vColor = aVertexColor;
     }
   `
 
-        const fsSource = `
+        let fsSource = `
+    varying lowp vec4 vColor;
     void main() {
-      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      gl_FragColor = vColor;
     }
   `
 
-        const shaderProgram = initShaderProgram(gl, vsSource, fsSource)
+        let shaderProgram = initShaderProgram(gl, vsSource, fsSource)
 
-        const programInfo = {
+        let points = [
+            1.0, 1.0, 0.0,
+            -1.0, 1.0, 0.0,
+            1.0, -1.0, 0.0,
+            -1.0, -1.0, 0.0
+        ]
+        // 位置缓冲区绑定
+        let pointBuffer = initBuffers(gl, gl.ARRAY_BUFFER, points)
+
+        let colors = [
+            1.0, 1.0, 1.0, 1.0,    // 白
+            1.0, 0.0, 0.0, 1.0,    // 红
+            0.0, 1.0, 0.0, 1.0,    // 绿
+            0.0, 0.0, 1.0, 1.0,    // 蓝
+        ];
+        // 颜色缓冲区绑定
+        let colorBuffer = initBuffers(gl, gl.ARRAY_BUFFER, colors)
+
+        let programInfo = {
             program: shaderProgram,
             attribLocations: {
                 vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+                VertexColor: gl.getAttribLocation(shaderProgram, 'aVertexColor')
             },
             uniformLocations: {
                 projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
                 modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
             },
+            buffers: {
+                pointBuffer: pointBuffer,
+                colorBuffer: colorBuffer
+            }
         }
 
-        const buffers = initBuffers(gl)
-
-        drawScene(gl, programInfo, buffers)
+        // 绘制
+        drawScene(gl, programInfo)
 
     }
 
-    function drawScene(gl, programInfo, buffers) {
-        gl.clearColor(1.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
-        gl.clearDepth(1.0);                 // Clear everything
-        gl.enable(gl.DEPTH_TEST);           // Enable depth testing
-        gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+    function drawScene(gl, programInfo) {
+        init(gl)
 
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        const fieldOfView = 45 * Math.PI / 180;   // 视图角度
-        const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;  // 宽高比
-        const zNear = 0.1;  // 近距离
-        const zFar = 100.0; // 远距离
-        const projectionMatrix = glMatrix.mat4.create();
-        // 场景转化
-        glMatrix.mat4.perspective(projectionMatrix,
-            fieldOfView,
-            aspect,
-            zNear,
-            zFar);
-
-        const modelViewMatrix = glMatrix.mat4.create();
-        // 模型位置转化
-        glMatrix.mat4.translate(modelViewMatrix,     // 结果矩阵
-            modelViewMatrix,     // 当前矩阵
-            [-1.0, 0.0, -6.0]);  // 移动向量
-
-        // 从缓冲区中执行 顶点着色器渲染
-            {
-            const numComponents = 3;  // 从缓存中 每次渲染取值size
-            const type = gl.FLOAT;    // 缓存中 数值精度
-            const normalize = false;  // 是否进行归一化
-            const stride = 0;         // 缓存字节间隔，取0时采用上诉设置覆盖
-            const offset = 0;         // 缓冲区内从取值开始偏移量
-            gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
-            gl.vertexAttribPointer(
-                programInfo.attribLocations.vertexPosition,
-                numComponents,
-                type,
-                normalize,
-                stride,
-                offset);
-            gl.enableVertexAttribArray(
-                programInfo.attribLocations.vertexPosition);
-        }
-
-        // 使用着色器程序
-
+        // 加载着色器程序
         gl.useProgram(programInfo.program);
 
-        // 绑定片源着色器
+        let fieldOfView = 45 * Math.PI / 180;   // 视图角度
+        let aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;  // 宽高比
+        let zNear = 0.1;  // 近距离
+        let zFar = 100.0; // 远距离
 
+        // 场景初始化矩阵
+        let projectionMatrix = getProjectionMatrix(fieldOfView, aspect, zNear, zFar)
+
+        // 位置初始化矩阵
+
+        // 初始位置矩阵
+        let modelViewMatrix = glMatrix.mat4.create();
+        // 位置移动
+        getModelViewMatrix(modelViewMatrix, [0.0, 0.0, -6.0]);
+
+        // 应用全局初始化和位置矩阵
         gl.uniformMatrix4fv(
             programInfo.uniformLocations.projectionMatrix,
             false,
@@ -120,34 +119,61 @@
             false,
             modelViewMatrix);
 
+
+
+        // 从缓冲区中渲染
         {
-            const offset = 0;
-            const vertexCount = 4;
+            let numComponents = 3;  // 从缓存中 每次渲染取值size
+            let type = gl.FLOAT;    // 缓存中 数值精度
+            let normalize = false;  // 是否进行归一化
+            let stride = 0;         // 缓存字节间隔，取0时采用上诉设置覆盖
+            let offset = 0;         // 缓冲区内从取值开始偏移量
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, programInfo.buffers.pointBuffer)
+            // 顶点着色器与缓冲区绑定
+            gl.vertexAttribPointer(
+                programInfo.attribLocations.vertexPosition,
+                numComponents,
+                type,
+                normalize,
+                stride,
+                offset);
+            // 激活缓冲区
+            gl.enableVertexAttribArray(
+                programInfo.attribLocations.vertexPosition);
+        }
+        // 切换缓冲区
+        gl.bindBuffer(gl.ARRAY_BUFFER, programInfo.buffers.colorBuffer)
+        // 颜色
+        gl.vertexAttribPointer(
+            programInfo.attribLocations.VertexColor,
+            4,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.enableVertexAttribArray(
+            programInfo.attribLocations.VertexColor
+        )
+
+        // 绘制
+        {
+            let offset = 0;       // 开始绘制的顶点偏移量
+            let vertexCount = 4;  // 控制绘制的顶点数
             gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
         }
 
     }
 
-
-    function initBuffers(gl) {
-        const positionBuffer = gl.createBuffer()
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-
-        var vertices = [
-            1.0, 1.0, 0.0,
-            -1.0, 1.0, 0.0,
-            1.0, -1.0, 0.0,
-            -1.0, -1.0, 0.0
-        ]
-
-        gl.bufferData(gl.ARRAY_BUFFER,
-            new Float32Array(vertices),
-            gl.STATIC_DRAW)
-
-        return {
-            position: positionBuffer
-        }
+    function init(gl) {
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black, fully opaque
+        gl.clearDepth(1.0);                 // Clear everything
+        gl.enable(gl.DEPTH_TEST);           // Enable depth testing
+        gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     }
+
 </script>
 
 </html>
